@@ -90,6 +90,3 @@ This project is licensed under the [DON'T BE A DICK PUBLIC LICENSE](https://gith
 ### 👨‍💻 Author
 
 Made with ❤️ by [Shayan Golmezerji](https://github.com/shayangolmezerji)
-
-```
-```
