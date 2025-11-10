@@ -1,71 +1,71 @@
 # main.py
 import os
-import requests
 import re
 import json
 import random
-from typing import Literal
+from typing import Literal, Optional, Dict, Any
+
+import requests
 from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# --- Configuration ---
+# --- کانفیگ ---
+
 load_dotenv()
-WEB_ID = os.getenv("CHARGE_RESELLER_WEB_ID")
-REDIRECT_URL = "https://domain.com/charge.php"
-API_URLS = {
+
+# کلید API و لینک ریدایرکت
+WEB_SERVICE_ID: Optional[str] = os.getenv("CHARGE_RESELLER_WEB_ID")
+REDIRECT_URL: str = "https://domain.com/charge.php"
+
+# آدرس ها بر اساس نوع شارژ
+API_ENDPOINTS: Dict[str, str] = {
     "direct": "https://chr724.ir/services/v3/EasyCharge/TopUp",
     "pincode": "https://chr724.ir/services/v3/EasyCharge/BuyProduct"
 }
 
-# --- Pydantic Models for Data Validation ---
+OperatorType = Literal["MTN", "#MTN", "!MTN", "MCI", "WiMax", "RTL", "!RTL"]
+
+# --- مدل ها ---
+
 class ChargeRequest(BaseModel):
     """
-    Request body model for charge requests.
-    FastAPI automatically validates the incoming JSON against this model.
+    مدل ورودی درخواست شارژ.
     """
-    amount: int
-    phone: str
+    amount: int = Field(..., ge=2000, le=20000, description="مبلغ (۲۰۰۰ تا ۲۰۰۰۰ تومان)")
+    phone: str = Field(..., description="شماره موبایل ۱۱ رقمی (شروع با ۰۹)")
     super: bool = False
     daemi: bool = False
     charge_type: Literal["direct", "pincode"]
 
-# --- API Instance ---
-app = FastAPI(
-    title="Shayan Golmezerji's Charge API",
-    description="A robust and secure API for handling mobile charge and top-up requests.",
-    version="1.0.0",
-)
+# --- توابع ---
 
-# --- Helper Functions ---
-def is_valid_phone(phone: str) -> bool:
-    """Checks if the phone number is valid (11 digits, starts with '09')."""
-    return bool(re.fullmatch(r"09\d{9}", phone))
+def _get_operator(phone: str, super: bool, daemi: bool) -> Optional[OperatorType]:
+    """تعیین اپراتور و نوع شارژ بر اساس پیش‌شماره."""
 
-def get_operator(phone: str, super_charge: bool, daemi: bool) -> str | None:
-    """Determines the operator based on the phone number prefix."""
     if re.fullmatch(r"09[03]\d{8}", phone):
-        if super_charge:
+        if super:
             return "!MTN"
         elif daemi:
             return "#MTN"
-        else:
-            return "MTN"
+        return "MTN"
+        
     elif re.fullmatch(r"09[19]\d{8}", phone):
         return "MCI"
+        
     elif re.fullmatch(r"094\d{8}", phone):
         return "WiMax"
+        
     elif re.fullmatch(r"092[0-2]\d{7}", phone):
-        if super_charge:
-            return "!RTL"
-        else:
-            return "RTL"
+        return "!RTL" if super else "RTL"
+        
     return None
 
-def build_params(data: dict) -> dict:
-    """Builds and cleans the API request parameters."""
-    params = {
-        "data[webserviceId]": WEB_ID,
+def _prep_api_payload(request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """آماده‌سازی پارامترهای نهایی برای ارسال به API واسط."""
+    
+    base_params = {
+        "data[webserviceId]": WEB_SERVICE_ID,
         "data[redirectUrl]": REDIRECT_URL,
         "data[count]": 1,
         "data[email]": "",
@@ -80,89 +80,92 @@ def build_params(data: dict) -> dict:
         "data[isTarabord]": "false",
         "data[secondOutputType]": "get",
         "data[ChargeKind]": "",
-        "_": random.randint(1111111111111, 9999999999999),
+        "data[nonce]": random.randint(1111111111111, 9999999999999),
     }
-    
-    params.update({
-        "data[amount]": data.get("amount"),
-        "data[cellphone]": data.get("phone"),
-        "data[type]": data.get("operator"),
-    })
 
-    if data.get("type") == "pincode":
-        params["data[productId]"] = f"CC-{data.get('operator')}-{data.get('amount')}"
-    
-    return params
+    charge_params = {
+        "data[amount]": request_data["amount"],
+        "data[cellphone]": request_data["phone"],
+        "data[type]": request_data["operator"],
+    }
 
-# --- API Endpoint ---
+    payload = {**base_params, **charge_params}
+
+    if request_data["type"] == "pincode":
+        payload["data[productId]"] = f"CC-{request_data['operator']}-{request_data['amount']}"
+    
+    return payload
+
+# --- نمونه ---
+
+app = FastAPI(
+    title="Type Shit",
+    description="سرویس پردازش درخواست‌های شارژ موبایل.",
+    version="1.0.0",
+)
+
+# --- پایان نمونه ---
+
 @app.post("/charge", status_code=status.HTTP_200_OK)
-async def process_charge(request: ChargeRequest):
+async def create_charge(request: ChargeRequest):
     """
-    Handles a charge request by validating input and forwarding it to the
-    charge reseller API.
+    درخواست شارژ را دریافت، اعتبارسنجی و به API واسط ارسال می‌کند.
+    """
     
-    Returns the JSON response from the external API.
-    """
-    # --- Input Validation ---
-    if not WEB_ID:
+    if not WEB_SERVICE_ID:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Web service ID not configured. Please set CHARGE_RESELLER_WEB_ID environment variable."
+            detail="خطای سرور: کلید وب‌سرویس (WEB_SERVICE_ID) تنظیم نشده است."
         )
 
-    if not (2000 <= request.amount <= 20000):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="مبلغ باید بیشتر از 2000 تومان و کمتر از 20000 تومان باشد"
-        )
+    operator = _get_operator(
+        request.phone, 
+        request.super,
+        request.daemi
+    )
     
-    if not is_valid_phone(request.phone):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="شماره تلفن باید 11 رقم باشد و با 09 شروع شود"
-        )
-
-    # --- Logic to get operator and build request ---
-    operator = get_operator(request.phone, request.super, request.daemi)
     if not operator:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="اپراتور برای این شماره تلفن یافت نشد"
+            detail="اپراتور برای این شماره تلفن یافت نشد."
         )
     
-    api_url = API_URLS.get(request.charge_type)
+    api_url = API_ENDPOINTS.get(request.charge_type)
     if not api_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="نوع شارژ نامعتبر است"
+            detail="نوع شارژ نامعتبر است."
         )
         
-    request_data = {
+    request_data_for_payload = {
         "amount": request.amount,
         "phone": request.phone,
         "operator": operator,
         "type": request.charge_type
     }
     
-    callback_name = f"Shayan Golmezerji{random.randint(1111111111, 9999999999)}_{random.randint(1111111111, 9999999999)}"
-    params = build_params(request_data)
+    # ساخت Callback
+    random_suffix = "".join(str(random.randint(0, 9)) for _ in range(15))
+    callback_name = f"callback_{random_suffix}"
+    
+    params = _prep_api_payload(request_data_for_payload)
     params["callback"] = callback_name
-
+    
     try:
-        response = requests.get(api_url, params=params)
-        response.raise_for_status()
-        response_text = response.text.replace(callback_name, "", 1)
-        match = re.search(r"^\((.*)\)$", response_text, re.DOTALL)
-        if match:
-            json_string = match.group(1)
-            result = json.loads(json_string)
-            return result
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="پاسخ API نامعتبر است"
-            )
+        response = requests.get(api_url, params=params, timeout=10)
+        response.raise_for_status() 
+        
+        # حذف Callback + پرانتزها برای تبدیل JSONP به JSON
+        response_text_clean = response.text.replace(f"{callback_name}", "").strip().lstrip('(').rstrip(')')
             
+        result = json.loads(response_text_clean)
+        return result
+
+    except requests.exceptions.Timeout:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="درخواست API منقضی شد."
+        )
     except requests.exceptions.RequestException as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -171,5 +174,5 @@ async def process_charge(request: ChargeRequest):
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="خطا در پردازش پاسخ JSON"
+            detail="خطا در پردازش پاسخ JSON."
         )
