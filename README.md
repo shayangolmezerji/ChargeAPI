@@ -1,71 +1,57 @@
-# ChargeAPI: The Modern Python API for Mobile Top-ups 🚀
+# یک API مدرن پایتون برای شارژ موبایل
 
-ChargeAPI is a robust and secure API for handling mobile charge and top-up requests. Built with a modern Python stack, this project leverages FastAPI and Uvicorn to provide a high-performance, well-documented, and easily maintainable web service.
+یک API قدرتمند و امن که برای مدیریت درخواست‌های شارژ سیم‌کارت و تاپ‌آپ طراحی شده. این پروژه بر پایه **FastAPI** و سرور **Uvicorn** توسعه داده شده تا عملکرد بالا، امنیت و نگهداری آسونی فراهم کنه.
 
-The focus is on security and reliability, ensuring that all API calls are validated and correctly processed before interacting with the external charge reseller service.
+**(استار فراموش نشه! ⭐)**
 
------
+### 🛠️ شروع به کار و راه‌اندازی
 
-### ✨ Features
+برای استفاده از ChargeAPI، ابتدا باید آن را در محیط محلی خود نصب و پیکربندی کنید.
 
-* **FastAPI**: A modern, high-performance web framework for building APIs with Python 3.7+ based on standard Python type hints.
-* **Uvicorn**: An ASGI server that powers the API, enabling fast, asynchronous request handling.
-* **Secure Configuration**: Uses a `.env` file to securely manage sensitive credentials like the web service key.
-* **Input Validation**: Automatic and robust data validation with Pydantic models ensures data integrity.
-* **Clear Error Handling**: Returns descriptive HTTP status codes for all errors, making the API easy to debug.
-* **API Documentation**: Automatic interactive API documentation (Swagger UI) available at `/docs`.
+#### ۱. پیش‌نیازها
 
------
+مطمئن شوید که **پایتون نسخه ۳.۷ یا بالاتر** و `pip` روی سیستم شما نصب شده است.
 
-### 🚀 Getting Started
+#### ۲. نصب
 
-These instructions will get a copy of the project up and running on your local machine.
-
-#### 1. Prerequisites
-
-Make sure you have Python 3.7+ and `pip` installed on your system.
-
-#### 2. Installation
-
-Install the required Python packages using `pip`.
+بسته‌های مورد نیاز پایتون را با استفاده از `pip` نصب کنید:
 
 ```bash
 pip install fastapi uvicorn python-dotenv requests
-````
+```
 
-#### 3\. Configuration
+#### ۳. پیکربندی امن
 
-Create a file named `.env` in the root directory of the project. This file is used to store your sensitive credentials.
+برای ذخیره اطلاعات محرمانه (مانند کلید وب‌سرویس)، یک فایل به نام **`.env`** در ریشه پروژه ایجاد کنید.
 
-To get your web service ID, you must register for an account on the official reseller's website, **`https://www.chargereseller.com/`**, and generate a key from your account dashboard.
+> **توجه:** برای دریافت **CHARGE\_RESELLER\_WEB\_ID** باید در وب‌سایت رسمی ریسلر شارژ ثبت‌نام کرده و کلید مربوطه را از پنل کاربری خود دریافت کنید.
 
 ```ini
 # .env
-CHARGE_RESELLER_WEB_ID="YOUR_WEB_SERVICE_ID_HERE"
+CHARGE_RESELLER_WEB_ID="کلید_وب_سرویس_خود_را_اینجا_قرار_دهید"
 ```
 
-#### 4\. Run the Project
+#### ۴. اجرای سرویس
 
-This command will start the API server with Uvicorn. The `--reload` flag enables auto-reloading on code changes for a faster development experience.
+با استفاده از Uvicorn، سرور API را اجرا کنید. پرچم `--reload` برای تسهیل فرآیند توسعه و اعمال تغییرات لحظه‌ای کد فعال است.
 
 ```bash
 uvicorn main:app --reload
 ```
 
+> **نکته فنی:** اجرای این دستور، علاوه بر راه‌اندازی سرور، **مستندات API (Swagger UI)** به صورت خودکار در آدرس `http://127.0.0.1:8000/docs` فعال می‌کند تا بتوانید مسیرهای (Endpoints) موجود را به‌راحتی مشاهده و تست کنید.
+
 -----
 
-### 🧠 How to Test
+### 🧪 نحوه تست و استفاده
 
-With the server running, you can test the API directly using the interactive documentation or a tool like `curl`.
+پس از اجرای موفقیت‌آمیز، می‌توانید API را مستقیماً از طریق مرورگر یا ابزارهای خط فرمان تست کنید.
 
-1.  **Open API Docs**: Navigate to the interactive API documentation at `http://127.0.0.1:8000/docs`. Here you can see all available endpoints and test them directly from your browser.
-
-2.  **Test a `POST` Request**: Use `curl` to send a `POST` request to your API's `/charge` endpoint. This will process a top-up request and return a payment URL.
-
-<!-- end list -->
+**تست با `curl`:**
+برای ارسال یک درخواست شارژ (`POST`) به مسیر `/charge` و دریافت لینک پرداخت، از دستور زیر استفاده کنید. توجه داشته باشید که **اعتبارسنجی داده‌های ورودی (مانند میزان شارژ و شماره تلفن) توسط مدل‌های Pydantic به‌طور خودکار انجام می‌شود** و در صورت مشکل، خطای شفافی دریافت خواهید کرد.
 
 ```bash
-curl -X POST "[http://127.0.0.1:8000/charge](http://127.0.0.1:8000/charge)" \
+curl -X POST "http://127.0.0.1:8000/charge" \
 -H "accept: application/json" \
 -H "Content-Type: application/json" \
 -d '{
@@ -77,16 +63,12 @@ curl -X POST "[http://127.0.0.1:8000/charge](http://127.0.0.1:8000/charge)" \
 }'
 ```
 
-You should receive a JSON response with the payment URL to complete the transaction.
+در پاسخ، یک خروجی JSON شامل URL پرداخت نهایی را دریافت خواهید کرد.
 
 -----
 
-### 📜 License
+### ✍️ درباره پروژه
 
-This project is licensed under the [DON'T BE A DICK PUBLIC LICENSE](https://github.com/ShayanGolmezerji/ChargeAPI/blob/main/LICENSE.md).
 
------
-
-### 👨‍💻 Author
-
-Made with ❤️ by [Shayan Golmezerji](https://github.com/shayangolmezerji)
+  * **توسعه‌دهنده:** [Shayan Golmezerji](https://github.com/shayangolmezerji)
+  * **مجوز:** این کد تحت [DON'T BE A DICK PUBLIC LICENSE](https://github.com/ShayanGolmezerji/ChargeAPI/blob/main/LICENSE.md) منتشر شده است.
